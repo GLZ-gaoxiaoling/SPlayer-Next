@@ -1,10 +1,8 @@
 <script setup lang="ts">
 import type { LyricLine } from "@shared/types/lyrics";
-import { LyricRenderer } from "./engine";
-import type { SpringParams } from "./engine/spring";
-import { DEFAULTS } from "./engine/constants";
-import { applyScrollPreroll } from "./utils/scroll-preroll";
-import "./renderer.css";
+import { DEFAULTS, type SpringParams, applyScrollPreroll, LyricRenderer } from "lyric-dom";
+import "lyric-dom/renderer.css";
+import LyricCredit from "./LyricCredit.vue";
 
 const props = withDefaults(
   defineProps<{
@@ -44,18 +42,6 @@ const props = withDefaults(
      * @default 1500
      */
     breatheCycleTarget?: number;
-    /**
-     * 透明度增加速度（行被激活时）
-     * @range 值越大过渡越快
-     * @default 50
-     */
-    alphaAttackSpeed?: number;
-    /**
-     * 透明度衰减速度（行取消激活时）
-     * @range 值越大过渡越快
-     * @default 7
-     */
-    alphaReleaseSpeed?: number;
     /**
      * 非激活行的基础透明度
      * @range 0 ~ 1（0 = 完全透明，1 = 不透明）
@@ -101,8 +87,6 @@ const props = withDefaults(
     scrollResetDelay: DEFAULTS.scrollResetDelay,
     minInterludeGap: DEFAULTS.minInterludeGap,
     breatheCycleTarget: DEFAULTS.breatheCycleTarget,
-    alphaAttackSpeed: DEFAULTS.alphaAttackSpeed,
-    alphaReleaseSpeed: DEFAULTS.alphaReleaseSpeed,
     inactiveAlpha: DEFAULTS.inactiveAlpha,
     hidePassedLines: DEFAULTS.hidePassedLines,
     enableBlur: DEFAULTS.enableBlur,
@@ -233,15 +217,6 @@ watch(
   (v) => renderer?.setConfig({ breatheCycleTarget: v }),
 );
 
-watch(
-  () => props.alphaAttackSpeed,
-  (v) => renderer?.setConfig({ alphaAttackSpeed: v }),
-);
-
-watch(
-  () => props.alphaReleaseSpeed,
-  (v) => renderer?.setConfig({ alphaReleaseSpeed: v }),
-);
 
 watch(
   () => props.inactiveAlpha,
@@ -301,7 +276,9 @@ watch(
 <template>
   <div ref="containerRef">
     <Teleport v-if="bottomLineEl" :to="bottomLineEl">
-      <slot name="bottom" />
+      <slot name="bottom">
+        <LyricCredit />
+      </slot>
     </Teleport>
   </div>
 </template>

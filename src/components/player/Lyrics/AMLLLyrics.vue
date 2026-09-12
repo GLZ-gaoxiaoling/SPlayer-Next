@@ -5,7 +5,7 @@ import { useSettingsStore } from "@/stores/settings";
 import { useStatusStore } from "@/stores/status";
 import { getCurrentTime } from "@/services/playback";
 import "@applemusic-like-lyrics/core/style.css";
-import "./renderer.css";
+import LyricCredit from "./LyricCredit.vue";
 
 const props = withDefaults(
   defineProps<{
@@ -361,7 +361,9 @@ defineExpose({
 <template>
   <div ref="wrapperRef" class="amll-lyrics-container" :class="contentVisible ? 'is-visible' : ''" />
   <Teleport v-if="bottomLineEl" :to="bottomLineEl">
-    <slot name="bottom" />
+    <slot name="bottom">
+      <LyricCredit />
+    </slot>
   </Teleport>
 </template>
 

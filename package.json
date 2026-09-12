@@ -102,6 +102,7 @@
     "eslint-plugin-vue": "^10.10.0",
     "happy-dom": "^20.11.1",
     "localforage": "^1.10.0",
+    "lyric-dom": "^0.1.1",
     "marked": "^18.0.9",
     "pinia": "^4.0.2",
     "pinia-plugin-persistedstate": "^4.7.1",
