@@ -1152,17 +1152,25 @@
       "label": "显示翻译",
       "description": "显示歌词的翻译文本"
     },
-    "showRomanization": {
-      "label": "显示音译",
-      "description": "显示歌词的音译文本"
+    "showRuby": {
+      "label": "显示词内注音",
+      "description": "显示歌词中汉字词语的假名或拼音注音"
     },
-    "amllShowLineRomanization": {
+    "showRomanization": {
       "label": "显示逐行音译",
       "description": "显示歌词行的音译文本"
     },
-    "amllShowWordRomanization": {
+    "showWordRomanization": {
       "label": "显示逐词音译",
       "description": "在逐字歌词中，显示每个字词的音译文本"
+    },
+    "enableScale": {
+      "label": "歌词缩放",
+      "description": "聚焦播放行，非激活行轻微缩小"
+    },
+    "bgAlwaysBelow": {
+      "label": "背景歌词置于下方",
+      "description": "始终将背景和声歌词显示在主歌词行下方"
     },
     "enableWordHighlight": {
       "label": "逐字高亮",

@@ -146,12 +146,16 @@ export interface LyricSettings {
   fontFamilyChinese: string;
   /** 是否显示翻译歌词 */
   showTranslation: boolean;
-  /** 是否显示音译歌词 */
+  /** 是否显示词内注音 */
+  showRuby: boolean;
+  /** 是否显示逐行音译 */
   showRomanization: boolean;
-  /** AMLL 是否显示逐行音译 */
-  amllShowLineRomanization: boolean;
-  /** AMLL 是否显示逐词音译 */
-  amllShowWordRomanization: boolean;
+  /** 是否显示逐词音译 */
+  showWordRomanization: boolean;
+  /** 是否启用歌词缩放效果 */
+  enableScale: boolean;
+  /** 是否始终将背景行置于主行下方 */
+  bgAlwaysBelow: boolean;
   /** 逐字高亮效果 */
   enableWordHighlight: boolean;
   /** 逐字上浮动画 */

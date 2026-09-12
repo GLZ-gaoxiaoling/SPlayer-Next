@@ -23,10 +23,14 @@ const props = withDefaults(
     enableBlur?: boolean;
     /** 是否显示翻译歌词 */
     showTranslation?: boolean;
+    /** 是否显示词内注音 */
+    showRuby?: boolean;
     /** 是否显示逐行音译 */
-    showLineRomanization?: boolean;
+    showRomanization?: boolean;
     /** 是否显示逐词音译 */
     showWordRomanization?: boolean;
+    /** 是否始终将背景行置于主行下方 */
+    bgAlwaysBelow?: boolean;
     /** 挂载时的初始播放时间（毫秒） */
     initialTime?: number;
   }>(),
@@ -37,8 +41,10 @@ const props = withDefaults(
     hidePassedLines: false,
     enableBlur: false,
     showTranslation: true,
-    showLineRomanization: true,
+    showRuby: true,
+    showRomanization: true,
     showWordRomanization: true,
+    bgAlwaysBelow: false,
     initialTime: 0,
   },
 );
@@ -79,13 +85,16 @@ const processedLyrics = computed(() => {
     const newLine = {
       ...line,
       translatedLyric: props.showTranslation ? line.translatedLyric : "",
-      romanLyric: props.showLineRomanization ? line.romanLyric : "",
+      romanLyric: props.showRomanization ? line.romanLyric : "",
     };
     if (line.words) {
       newLine.words = line.words.map((word) => {
         const newWord = { ...word };
         if (!props.showWordRomanization) {
           delete newWord.romanWord;
+        }
+        if (!props.showRuby) {
+          delete newWord.ruby;
         }
         return newWord;
       });
@@ -137,6 +146,7 @@ const syncPlayerOptions = (player = playerRef.value): void => {
   const useSpring = settings.lyric.useAMSpring;
   player.setEnableSpring(useSpring);
   player.setEnableScale(useSpring);
+  player.setAlwaysPostpositionBackground(props.bgAlwaysBelow ?? false);
   player.setLinePosYSpringParams({
     mass: settings.lyric.amllVerticalSpringMass,
     damping: settings.lyric.amllVerticalSpringDamping,
@@ -278,6 +288,7 @@ watch(
     props.wordFadeWidth,
     props.hidePassedLines,
     props.enableBlur,
+    props.bgAlwaysBelow,
     settings.lyric.useAMSpring,
     settings.lyric.amllVerticalSpringMass,
     settings.lyric.amllVerticalSpringDamping,

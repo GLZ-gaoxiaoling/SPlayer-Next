@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { LyricLine } from "@shared/types/lyrics";
-import { DEFAULTS, type SpringParams, applyScrollPreroll, LyricRenderer } from "lyric-dom";
+import { DEFAULTS, type SpringParams, LyricRenderer } from "lyric-dom";
 import "lyric-dom/renderer.css";
 import LyricCredit from "./LyricCredit.vue";
 
@@ -8,7 +8,7 @@ const props = withDefaults(
   defineProps<{
     /** 歌词行数据数组 */
     lyricLines: LyricLine[];
-    /** 是否正在播放（默认 true） */
+    /** 是否正在播放 */
     playing?: boolean;
     /**
      * 激活行在容器中的对齐位置
@@ -73,10 +73,28 @@ const props = withDefaults(
      * @default false
      */
     enableEmphasizeEffect?: boolean;
+    /**
+     * 触发长音节强调的最小持续时间（毫秒）
+     * @default 1000
+     */
+    emphasizeMinDuration?: number;
+    /**
+     * 是否启用歌词行缩放效果
+     * @default true
+     */
+    enableScale?: boolean;
     /** 是否显示翻译歌词 @default true */
     showTranslation?: boolean;
-    /** 是否显示音译歌词 @default true */
+    /** 是否显示逐行音译 @default true */
     showRomanization?: boolean;
+    /** 是否显示逐词音译 @default true */
+    showWordRomanization?: boolean;
+    /** 是否显示词内注音 @default false */
+    showRuby?: boolean;
+    /** 是否始终将背景行置于主行下方 @default false */
+    bgAlwaysBelow?: boolean;
+    /** 是否启用滚动预滚优化 @default true */
+    enableScrollPreroll?: boolean;
     /** 挂载时的初始播放时间（毫秒）@default 0 */
     initialTime?: number;
   }>(),
@@ -93,8 +111,14 @@ const props = withDefaults(
     enableWordHighlight: DEFAULTS.enableWordHighlight,
     enableFloatAnimation: DEFAULTS.enableFloatAnimation,
     enableEmphasizeEffect: DEFAULTS.enableEmphasizeEffect,
+    emphasizeMinDuration: DEFAULTS.emphasizeMinDuration,
+    enableScale: DEFAULTS.enableScale,
     showTranslation: true,
     showRomanization: true,
+    showWordRomanization: true,
+    showRuby: DEFAULTS.showRuby,
+    bgAlwaysBelow: DEFAULTS.bgAlwaysBelow,
+    enableScrollPreroll: DEFAULTS.enableScrollPreroll,
     initialTime: 0,
   },
 );
@@ -120,8 +144,9 @@ let pendingLyrics: LyricLine[] | null = null;
  * 由外部播放器在每帧或定时器中调用，驱动歌词滚动与逐字高亮动画。
  *
  * @param time - 当前播放时间（毫秒）
+ * @param _isSeeking - 是否处于跳转状态
  */
-const setCurrentTime = (time: number) => {
+const setCurrentTime = (time: number, _isSeeking = false) => {
   renderer?.setCurrentTime(time);
 };
 
@@ -129,6 +154,7 @@ const freeze = () => {
   isFrozen = true;
   renderer?.freeze();
 };
+
 const resume = () => {
   isFrozen = false;
   // 应用冻结期间缓冲的歌词变更
@@ -157,7 +183,7 @@ onMounted(() => {
     renderer.setCurrentTime(props.initialTime);
   }
   if (props.lyricLines.length > 0) {
-    renderer.setLyrics(applyScrollPreroll(props.lyricLines));
+    renderer.setLyrics(props.lyricLines);
   }
   bottomLineEl.value = renderer.getBottomLineElement();
 });
@@ -167,17 +193,16 @@ onUnmounted(() => {
   renderer = null;
 });
 
-/** 重建歌词 DOM（应用滚动预滚后的克隆数据） */
-const rebuildLyrics = (): void => {
-  const prepared = applyScrollPreroll(props.lyricLines);
+/** 更新歌词数据 */
+const updateLyrics = (): void => {
   if (isFrozen) {
-    pendingLyrics = prepared;
+    pendingLyrics = props.lyricLines;
   } else {
-    renderer?.setLyrics(prepared);
+    renderer?.setLyrics(props.lyricLines);
   }
 };
 
-watch(() => props.lyricLines, rebuildLyrics);
+watch(() => props.lyricLines, updateLyrics);
 
 watch(
   () => props.playing,
@@ -217,7 +242,6 @@ watch(
   (v) => renderer?.setConfig({ breatheCycleTarget: v }),
 );
 
-
 watch(
   () => props.inactiveAlpha,
   (v) => renderer?.setConfig({ inactiveAlpha: v }),
@@ -238,38 +262,54 @@ watch(
   (v) => renderer?.setConfig({ enableWordHighlight: v }),
 );
 
-// 上浮/强调开关变化需要重建 DOM（影响 span 结构和动画创建）
+watch(
+  () => props.enableScale,
+  (v) => renderer?.setConfig({ enableScale: v }),
+);
+
 watch(
   () => props.enableFloatAnimation,
-  (v) => {
-    renderer?.setConfig({ enableFloatAnimation: v });
-    rebuildLyrics();
-  },
+  (v) => renderer?.setConfig({ enableFloatAnimation: v }),
 );
 
 watch(
   () => props.enableEmphasizeEffect,
-  (v) => {
-    renderer?.setConfig({ enableEmphasizeEffect: v });
-    rebuildLyrics();
-  },
+  (v) => renderer?.setConfig({ enableEmphasizeEffect: v }),
 );
 
-// 翻译/音译开关变化需要重建 DOM（影响 sub 行的创建）
+watch(
+  () => props.emphasizeMinDuration,
+  (v) => renderer?.setConfig({ emphasizeMinDuration: v }),
+);
+
 watch(
   () => props.showTranslation,
-  (v) => {
-    renderer?.setConfig({ showTranslation: v });
-    rebuildLyrics();
-  },
+  (v) => renderer?.setConfig({ showTranslation: v }),
 );
 
 watch(
   () => props.showRomanization,
-  (v) => {
-    renderer?.setConfig({ showRomanization: v });
-    rebuildLyrics();
-  },
+  (v) => renderer?.setConfig({ showRomanization: v }),
+);
+
+watch(
+  () => props.showWordRomanization,
+  (v) => renderer?.setConfig({ showWordRomanization: v }),
+);
+
+watch(
+  () => props.showRuby,
+  (v) => renderer?.setConfig({ showRuby: v }),
+);
+
+watch(
+  () => props.bgAlwaysBelow,
+  (v) => renderer?.setConfig({ bgAlwaysBelow: v }),
+);
+
+watch(
+  () => props.enableScrollPreroll,
+  (v) => renderer?.setConfig({ enableScrollPreroll: v }),
 );
 </script>
 

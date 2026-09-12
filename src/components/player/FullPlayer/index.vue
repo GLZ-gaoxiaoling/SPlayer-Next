@@ -11,8 +11,7 @@ import { usePlaylistPicker } from "@/composables/usePlaylistPicker";
 import { useImmersiveMode } from "@/composables/useImmersiveMode";
 import { useTimeFormat } from "@/composables/useTimeFormat";
 import { useProgressLyric } from "@/composables/useProgressLyric";
-import DefaultLyrics from "@/components/player/Lyrics/DefaultLyrics.vue";
-import AMLLLyrics from "@/components/player/Lyrics/AMLLLyrics.vue";
+import Lyrics from "@/components/player/Lyrics/index.vue";
 import PlaylistPickerDialog from "@/components/modals/PlaylistPickerDialog.vue";
 import { useWindowControls } from "@/composables/useWindowControls";
 import * as player from "@/core/player";
@@ -43,7 +42,7 @@ const {
 const { timeDisplay, toggleTimeFormat } = useTimeFormat();
 const { snapToNearestLyric } = useProgressLyric();
 
-const lyricRef = ref<InstanceType<typeof DefaultLyrics> | InstanceType<typeof AMLLLyrics>>();
+const lyricRef = ref<InstanceType<typeof Lyrics>>();
 const lyricMounted = ref(false);
 const initialLyricTimeMs = ref(0);
 
@@ -117,12 +116,6 @@ const handleLyricSeek = async (timeMs: number): Promise<void> => {
   await player.seek(timeMs);
   if (!isPlaying.value) await player.play();
 };
-
-const springConfig = computed(() => ({
-  mass: settings.lyric.springMass,
-  damping: settings.lyric.springDamping,
-  stiffness: settings.lyric.springStiffness,
-}));
 
 const lyricFontSize = computed(() =>
   settings.lyric.adaptiveFontSize
@@ -311,38 +304,12 @@ const showComments = (): void => {
                 mixBlendMode: settings.lyric.lyricBlendMode,
               }"
             >
-              <AMLLLyrics
-                v-if="lyricMounted && hasLyric && settings.lyric.engine === 'amll'"
+              <Lyrics
+                v-if="lyricMounted && hasLyric"
                 ref="lyricRef"
                 :lyric-lines="media.parsedLyric"
                 :initial-time="initialLyricTimeMs"
                 :playing="isPlaying"
-                :align-position="settings.lyric.alignPosition"
-                :word-fade-width="settings.lyric.wordFadeWidth"
-                :hide-passed-lines="settings.lyric.hidePassedLines"
-                :enable-blur="settings.lyric.enableBlur"
-                :show-translation="settings.lyric.showTranslation"
-                :show-line-romanization="settings.lyric.amllShowLineRomanization"
-                :show-word-romanization="settings.lyric.amllShowWordRomanization"
-                @seek="handleLyricSeek"
-              />
-              <DefaultLyrics
-                v-else-if="lyricMounted && hasLyric"
-                ref="lyricRef"
-                :lyric-lines="media.parsedLyric"
-                :initial-time="initialLyricTimeMs"
-                :playing="isPlaying"
-                :align-position="settings.lyric.alignPosition"
-                :word-fade-width="settings.lyric.wordFadeWidth"
-                :spring-config="springConfig"
-                :inactive-alpha="settings.lyric.inactiveAlpha"
-                :hide-passed-lines="settings.lyric.hidePassedLines"
-                :enable-blur="settings.lyric.enableBlur"
-                :enable-word-highlight="settings.lyric.enableWordHighlight"
-                :enable-float-animation="settings.lyric.enableFloatAnimation"
-                :enable-emphasize-effect="settings.lyric.enableEmphasizeEffect"
-                :show-translation="settings.lyric.showTranslation"
-                :show-romanization="settings.lyric.showRomanization"
                 @seek="handleLyricSeek"
               />
               <div
