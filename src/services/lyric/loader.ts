@@ -167,7 +167,8 @@ const tryApplyTTMLOverlay = (token: number, track: Track, online: OnlineResult):
 };
 
 /**
- * 提交在线歌词；若成功则在后台异步触发 TTML 升级，解析后为空时优先回退本地
+ * 提交在线歌词
+ * 若成功则在后台异步触发 TTML 升级，解析后为空时优先回退本地
  * @param token - 竞态 token
  * @param track - 歌曲信息
  * @param online - 在线歌词结果
@@ -179,12 +180,37 @@ const applyOnline = (
   online: OnlineResult,
   fallbackLocal: LocalLyric | null,
 ): void => {
-  const success = commitIfBetter(token, online.source, online.input);
-  if (success) {
+  const media = useMediaStore();
+  const current = media.activeLyric;
+  const alreadyCommitted =
+    current?.source === "online" &&
+    current.platform === online.source.platform &&
+    current.format === online.source.format;
+  // 已经提交过在线歌词，检查是否需要回退本地或触发 TTML 覆盖
+  if (alreadyCommitted) {
+    if (media.parsedLyric.length === 0 && fallbackLocal) {
+      commitLocal(token, fallbackLocal);
+      return;
+    }
     tryApplyTTMLOverlay(token, track, online);
-  } else if (fallbackLocal && useMediaStore().parsedLyric.length === 0) {
-    commitLocal(token, fallbackLocal);
+    return;
   }
+  // 尝试提交在线歌词
+  const preference = useSettingsStore().lyric.lyricSourcePreference;
+  const isExplicit = preference !== "auto" && preference !== "self";
+  // 非显式指定模式（智能选择）下，若当前已展示更优歌词（如候选抢占或插件优选），不降级覆盖
+  if (!isExplicit && current && !isBetterFormat(online.source.format, current.format)) {
+    return;
+  }
+  // 尝试提交在线歌词，若失败则回退本地
+  if (!commitAndHasParsed(token, online.source, online.input)) {
+    if (fallbackLocal && media.parsedLyric.length === 0) {
+      commitLocal(token, fallbackLocal);
+    }
+    return;
+  }
+  // 尝试触发 TTML 覆盖
+  tryApplyTTMLOverlay(token, track, online);
 };
 
 /**

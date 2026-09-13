@@ -138,14 +138,19 @@ export const resolveOnlineByPreference = async (
   if (preference === "self") {
     return isPlatform(track.source) ? resolvePlatformLyric(track.source, track) : null;
   }
-  if (preference !== "auto") return resolvePlatformLyric(preference, track);
+  if (preference !== "auto") {
+    const preferred = await resolvePlatformLyric(preference, track);
+    if (!isCurrent()) return null;
+    if (preferred) return preferred;
+  }
 
   const order = settings.lyric.lyricSourceOrder ?? DEFAULT_LYRIC_SOURCE_ORDER;
   const formatOrder = settings.lyric.lyricFormatOrder ?? DEFAULT_LYRIC_FORMAT_ORDER;
-  let candidates: Platform[] = [...order];
+  let candidates: Platform[] =
+    preference === "auto" ? [...order] : order.filter((p) => p !== preference);
   if (options.hasLocal) {
     if (!settings.lyric.smartPreferOnline || !options.localFormat) return null;
-    candidates = order.filter((platform) =>
+    candidates = candidates.filter((platform) =>
       platformCanUpgrade(platform, options.localFormat!, formatOrder),
     );
     if (candidates.length === 0) return null;

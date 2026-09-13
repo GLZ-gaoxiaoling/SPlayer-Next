@@ -428,4 +428,59 @@ describe("lyric loader", () => {
     // 状态必须依然属于歌曲 B，绝不能被歌曲 A 覆盖
     expect(media.parsedLyric[0].words[0].word).toContain("歌曲B的歌词");
   });
+
+  it("偏好指定平台：当前展示高优先级 QRC 时，切换偏好为酷狗 (KRC) 必须成功替换展示", async () => {
+    const settings = useSettingsStore();
+    const media = useMediaStore();
+    const track = createTrack("song_pref_switch");
+    media.track = track;
+
+    // 先加载 QQ 音乐的 QRC
+    mockResolveOnlineByPreference.mockResolvedValue({
+      source: { source: "online", format: "qrc", platform: "qqmusic" },
+      input: { content: "[1000,1000]QQ音乐QRC歌词(1000,1000)" },
+    });
+    await loadForTrack(null);
+    expect(media.activeLyric?.format).toBe("qrc");
+    expect(media.activeLyric?.platform).toBe("qqmusic");
+
+    // 用户在播放器中点击切换偏好为酷狗音乐 (KRC)
+    mockResolveOnlineByPreference.mockResolvedValue({
+      source: { source: "online", format: "krc", platform: "kugou" },
+      input: { content: "[00:01.000]<0,1000>酷狗音乐KRC歌词" },
+    });
+    settings.lyric.lyricSourcePreference = "kugou";
+
+    await vi.waitFor(() => {
+      expect(media.activeLyric?.format).toBe("krc");
+    });
+    expect(media.activeLyric?.platform).toBe("kugou");
+    expect(media.parsedLyric[0].words[0].word).toContain("酷狗音乐KRC歌词");
+  });
+
+  it("显式平台指令：显式指定平台时即便仅有普通 LRC 也强制生效展示", async () => {
+    const settings = useSettingsStore();
+    const media = useMediaStore();
+    const track = createTrack("song_lrc_pref");
+    media.track = track;
+
+    mockResolveOnlineByPreference.mockResolvedValue({
+      source: { source: "online", format: "qrc", platform: "qqmusic" },
+      input: { content: "[1000,1000]原优质QRC(1000,1000)" },
+    });
+    await loadForTrack(null);
+    expect(media.activeLyric?.format).toBe("qrc");
+
+    mockResolveOnlineByPreference.mockResolvedValue({
+      source: { source: "online", format: "lrc", platform: "netease" },
+      input: { content: "[00:01.00]网易云普通LRC歌词" },
+    });
+    settings.lyric.lyricSourcePreference = "netease";
+
+    await vi.waitFor(() => {
+      expect(media.activeLyric?.format).toBe("lrc");
+    });
+    expect(media.activeLyric?.platform).toBe("netease");
+    expect(media.parsedLyric[0].words[0].word).toContain("网易云普通LRC歌词");
+  });
 });
