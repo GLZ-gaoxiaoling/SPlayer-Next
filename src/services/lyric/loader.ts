@@ -3,9 +3,8 @@
  */
 
 import type { Track, TrackDetail } from "@shared/types/player";
-import type { LyricData, LyricInput } from "@shared/types/lyrics";
+import type { LyricData, LyricFormat, LyricInput } from "@shared/types/lyrics";
 import { isPlatform } from "@shared/types/platform";
-import { bestExternalIndex } from "@/utils/lyric/parse";
 import { useMediaStore } from "@/stores/media";
 import { useSettingsStore } from "@/stores/settings";
 import { DEFAULT_LYRIC_FORMAT_ORDER } from "@/types/settings";
@@ -26,6 +25,31 @@ import { consumePreloadedLyric } from "@/services/lyric/preload";
 
 /** 竞态 token */
 let currentToken = 0;
+
+/**
+ * 从外部歌词列表中选出最优格式的索引
+ * @param lyrics - 外部歌词列表
+ * @param priority - 自定义格式优先级
+ * @returns 最优格式的索引，无可用歌词时返回 -1
+ */
+const bestExternalIndex = (
+  lyrics: { format: LyricFormat }[],
+  priority?: readonly LyricFormat[],
+): number => {
+  if (lyrics.length === 0) return -1;
+  const order = priority && priority.length > 0 ? priority : DEFAULT_LYRIC_FORMAT_ORDER;
+  let bestIdx = 0;
+  let bestPriority = order.length;
+  for (let i = 0; i < lyrics.length; i++) {
+    const p = order.indexOf(lyrics[i].format);
+    const rank = p === -1 ? order.length : p;
+    if (rank < bestPriority) {
+      bestPriority = rank;
+      bestIdx = i;
+    }
+  }
+  return bestIdx;
+};
 
 /**
  * 读取本地歌词

@@ -1,8 +1,26 @@
 import type { Platform } from "./platform";
 import type { Track } from "./player";
+import type {
+  LyricFormat as KitLyricFormat,
+  LyricLanguage as KitLyricLanguage,
+  LyricLine as KitLyricLine,
+  LyricWord as KitLyricWord,
+} from "lyric-kit";
+
+export type {
+  DOMParserConstructor,
+  DOMParserLike,
+  LyricMetadata,
+  LyricResult,
+  ParseOptions,
+  SerializeLyricFormat,
+  StripOptions,
+  TTMLAgent,
+  TTMLPlatformId,
+} from "lyric-kit";
 
 /** 歌词格式 */
-export type LyricFormat = "ttml" | "lys" | "yrc" | "qrc" | "krc" | "lrc" | "srt" | "ass";
+export type LyricFormat = KitLyricFormat;
 
 /** 默认格式优先级（高到低）；本地外挂选择、TTML 升级判定共用 */
 export const DEFAULT_LYRIC_FORMAT_ORDER: readonly LyricFormat[] = [
@@ -20,7 +38,7 @@ export const DEFAULT_LYRIC_FORMAT_ORDER: readonly LyricFormat[] = [
 export type LyricSource = "external" | "embedded" | "online";
 
 /** 歌词行语言；und-Latn 表示语言未知的拉丁文字 */
-export type LyricLanguage = "ja" | "ko" | "zh-CN" | "und-Latn";
+export type LyricLanguage = KitLyricLanguage;
 
 /** 歌词数据 */
 export type LyricData = {
@@ -41,17 +59,23 @@ export interface LyricSpan {
 }
 
 /** 歌词单词 */
-export interface LyricWord extends LyricSpan {
+export interface LyricWord extends KitLyricWord {
   /** 音译内容 */
   romanWord?: string;
   /** 是否包含不雅用语 */
   obscene?: boolean;
   /** 注音（如日语假名标注） */
   ruby?: LyricSpan[];
+  /** 该音节结尾是否紧跟空格 */
+  endsWithSpace?: boolean;
+  /** 空拍数量 */
+  emptyBeat?: number;
 }
 
 /** 一行歌词 */
-export interface LyricLine {
+export interface LyricLine extends KitLyricLine {
+  /** 行唯一标识符 */
+  id?: string;
   /** 主歌词语言，用于字形选择与 HTML lang */
   language?: LyricLanguage;
   /**
@@ -71,6 +95,12 @@ export interface LyricLine {
   isBG: boolean;
   /** 是否为对唱歌词行 */
   isDuet: boolean;
+  /** 演唱者 ID */
+  agentId?: string;
+  /** 歌曲结构分段标签 */
+  songPart?: string;
+  /** 所属结构块索引 */
+  blockIndex?: number;
 }
 
 /**
@@ -79,12 +109,18 @@ export interface LyricLine {
 export interface LyricInput {
   /** 主歌词原始文本 */
   content: string;
+  /** 主歌词格式 */
+  format?: LyricFormat;
   /** 翻译原始文本 */
   translation?: string;
+  /** 翻译歌词格式 */
   translationFormat?: LyricFormat;
   /** 罗马音原始文本 */
   romaji?: string;
+  /** 罗马音歌词格式 */
   romajiFormat?: LyricFormat;
+  /** 独立假名注音原始文本 */
+  kana?: string;
 }
 
 /** 平台额外字段 */
