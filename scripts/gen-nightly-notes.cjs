@@ -32,9 +32,7 @@ if (!commits) {
   }
 }
 
-const content = [`**版本**: \`${version}\``, "", "### Commits", "", commits, ""].join(
-  "\n",
-);
+const content = [`**版本**: \`${version}\``, "", "### Commits", "", commits, ""].join("\n");
 
 const targetFile = resolve(process.cwd(), process.argv[2] || "notes.md");
 writeFileSync(targetFile, content, "utf-8");
