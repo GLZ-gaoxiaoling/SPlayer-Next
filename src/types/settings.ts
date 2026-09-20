@@ -301,10 +301,10 @@ export interface AppearanceSettings {
 
 /** 强迫症设置 */
 export interface PresetSettings {
-  /** Fuck DJ Mode */
-  fuckDjMode: boolean;
-  /** Fuck ** Mode */
-  uncensorProfanity: boolean;
+  /** 跳过指定关键词歌曲 */
+  skipKeywordsSongs: boolean;
+  /** 跳过指定关键词列表 */
+  skipTrackKeywords: string[];
   /** 隐藏歌曲列表的 VIP 标签 */
   hideVipTag: boolean;
   /** 隐藏歌曲列表的音质标签 */
