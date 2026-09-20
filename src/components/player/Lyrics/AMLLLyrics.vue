@@ -96,9 +96,6 @@ const processedLyrics = computed(() => {
     if (line.words) {
       newLine.words = line.words.map((word) => {
         const newWord = { ...word };
-        if (word.endsWithSpace && !word.word.endsWith(" ")) {
-          newWord.word = word.word + " ";
-        }
         if (!props.showWordRomanization) {
           delete newWord.romanWord;
         }
