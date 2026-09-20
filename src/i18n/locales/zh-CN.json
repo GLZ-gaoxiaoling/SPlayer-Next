@@ -1115,10 +1115,6 @@
       "label": "提前入场动画",
       "description": "尝试让歌词入场动画提前开始（最多 1 秒），使过渡更加平滑"
     },
-    "amllConvertExcessiveBackgroundLines": {
-      "label": "合并背景人声",
-      "description": "将多行连续背景人声转换为单行背景人声与主歌词行的形式"
-    },
     "amllSyncMainAndBackgroundLines": {
       "label": "同步背景人声时间",
       "description": "自动同步主歌词与背景人声的时间轴"
@@ -1456,6 +1452,13 @@
       "blur": "模糊",
       "solid": "纯色",
       "animation": "流体"
+    },
+    "playerBgRenderer": {
+      "label": "渲染引擎",
+      "description": "选择流体背景渲染引擎",
+      "mesh": "网格渐变渲染器",
+      "isolation": "isolation 渲染器",
+      "pixi": "PixiJS 渲染器"
     },
     "playerBgFlowSpeed": {
       "label": "流动速度",

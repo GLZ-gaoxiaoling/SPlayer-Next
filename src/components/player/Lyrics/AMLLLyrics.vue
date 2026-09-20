@@ -211,7 +211,6 @@ onMounted(async () => {
   player.setOptimizeOptions({
     cleanUnintentionalOverlaps: settings.lyric.amllCleanUnintentionalOverlaps,
     tryAdvanceStartTime: settings.lyric.amllTryAdvanceStartTime,
-    convertExcessiveBackgroundLines: settings.lyric.amllConvertExcessiveBackgroundLines,
     syncMainAndBackgroundLines: settings.lyric.amllSyncMainAndBackgroundLines,
     normalizeSpaces: settings.lyric.amllNormalizeSpaces,
     resetLineTimestamps: settings.lyric.amllResetLineTimestamps,
@@ -324,7 +323,6 @@ watch(
   () => ({
     cleanUnintentionalOverlaps: settings.lyric.amllCleanUnintentionalOverlaps,
     tryAdvanceStartTime: settings.lyric.amllTryAdvanceStartTime,
-    convertExcessiveBackgroundLines: settings.lyric.amllConvertExcessiveBackgroundLines,
     syncMainAndBackgroundLines: settings.lyric.amllSyncMainAndBackgroundLines,
     normalizeSpaces: settings.lyric.amllNormalizeSpaces,
     resetLineTimestamps: settings.lyric.amllResetLineTimestamps,
@@ -333,8 +331,6 @@ watch(
     if (!playerRef.value) return;
     playerRef.value.setOptimizeOptions(options);
     if (processedLyrics.value.length > 0 && !isFrozen.value) {
-      const currentTime = getCurrentTime() + status.lyricOffsetMs;
-      playerRef.value.setLyricLines(processedLyrics.value, currentTime);
       processLyricLanguage();
     }
   },
