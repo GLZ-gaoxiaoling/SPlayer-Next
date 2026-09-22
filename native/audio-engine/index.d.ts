@@ -29,9 +29,9 @@ export declare class AudioPlayer {
    * @param auto_play - 是否自动播放，false 时加载后立即暂停
    *
    * 异步三段式：
-   * 1. 主线程持锁瞬间（微秒级）：take 旧解码线程 handle + 拿参数（cover_dir / 归一化开关）
-   * 2. spawn_blocking 工作线程（**不持有 inner 引用**）：读取音源采样率、协商输出流并启动解码
-   * 3. 主线程持锁瞬间：提交输出流、构造 sink + attach + emit stateChanged
+   * 主线程只提取旧资源和配置，不在持锁时等待设备或解码 IO。
+   * 工作线程读取音源、打开暂停的输出流，按最终输出格式启动解码。
+   * 主线程校验代次后提交资源并恢复播放，过期任务的输出保持静音。
    * 持锁阶段都是纯内存操作，主线程其它同步 NAPI 调用最多等几微秒，不会被 IO 卡住
    */
   load(source: string, autoPlay?: boolean): Promise<JsMusicMetadata>

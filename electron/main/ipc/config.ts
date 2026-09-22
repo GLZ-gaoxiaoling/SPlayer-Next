@@ -14,10 +14,8 @@ import {
   setEqualizerEnabled,
   setEqualizerBands,
   setPreampGain,
-  getPlayer,
   setExclusiveMode,
 } from "@main/services/engine";
-import { requestReinit } from "@main/services/device";
 import {
   setTaskbarProgress,
   applyMainWindowZoom,
@@ -79,7 +77,6 @@ const applyConfigChange = (keyPath: string, value: unknown, previous: unknown): 
       // 独占模式仅 Windows 引擎支持；切模式后重建输出立即生效
       if (isWin) {
         setExclusiveMode(value === "exclusive");
-        requestReinit(getPlayer());
       }
       break;
     case "system.taskbarProgress":

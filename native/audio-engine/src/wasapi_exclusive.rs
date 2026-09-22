@@ -1,4 +1,4 @@
-//! Windows WASAPI 独占模式输出（绕过系统混音器，bit-perfect 回放）。
+//! Windows WASAPI 独占模式输出，绕过系统混音器，保留播放器 DSP 链路。
 //!
 //! 与共享模式（cpal）互斥：协商成功的格式即解码重采样目标，
 //! 渲染线程以事件驱动方式从 `DecoderSource` 拉取 f32 样本，
@@ -14,17 +14,15 @@ use std::thread::JoinHandle;
 use anyhow::{Context, Result};
 use tracing::{debug, info, warn};
 use windows::core::{GUID, PCWSTR};
-use windows::Win32::Foundation::{CloseHandle, HANDLE, WAIT_OBJECT_0, WAIT_EVENT};
+use windows::Win32::Foundation::{CloseHandle, HANDLE, WAIT_EVENT, WAIT_OBJECT_0};
 use windows::Win32::Media::Audio::{
     eConsole, eRender, IAudioClient, IAudioRenderClient, IMMDevice, IMMDeviceEnumerator,
     MMDeviceEnumerator, AUDCLNT_E_BUFFER_SIZE_NOT_ALIGNED, AUDCLNT_E_DEVICE_IN_USE,
-    AUDCLNT_SHAREMODE_EXCLUSIVE, AUDCLNT_STREAMFLAGS_EVENTCALLBACK, WAVEFORMATEX,
-    WAVEFORMATEXTENSIBLE, WAVEFORMATEXTENSIBLE_0,
+    AUDCLNT_E_UNSUPPORTED_FORMAT, AUDCLNT_SHAREMODE_EXCLUSIVE, AUDCLNT_STREAMFLAGS_EVENTCALLBACK,
+    WAVEFORMATEX, WAVEFORMATEXTENSIBLE, WAVEFORMATEXTENSIBLE_0,
 };
 use windows::Win32::System::Com::{CoCreateInstance, CLSCTX_ALL};
-use windows::Win32::System::Threading::{
-    CreateEventW, INFINITE, SetEvent, WaitForMultipleObjects,
-};
+use windows::Win32::System::Threading::{CreateEventW, SetEvent, WaitForMultipleObjects, INFINITE};
 
 use crate::source::DecoderSource;
 
@@ -41,7 +39,7 @@ const SPEAKER_STEREO: u32 = 0x3;
 /// SPEAKER_5POINT1（含低音炮）
 const SPEAKER_5POINT1: u32 = 0x3F;
 /// SPEAKER_7POINT1
-const SPEAKER_7POINT1: u32 = 0x63;
+const SPEAKER_7POINT1: u32 = 0x63F;
 
 /// 渲染等待句柄索引：关闭信号
 const SHUTDOWN_EVENT_INDEX: u32 = 1;
@@ -98,7 +96,8 @@ fn endpoint_id_from_device_id(device_id: &str) -> &str {
 fn resolve_endpoint(device_id: Option<&str>) -> Result<IMMDevice> {
     unsafe {
         let enumerator: IMMDeviceEnumerator =
-            CoCreateInstance(&MMDeviceEnumerator, None, CLSCTX_ALL).context("创建设备枚举器失败")?;
+            CoCreateInstance(&MMDeviceEnumerator, None, CLSCTX_ALL)
+                .context("创建设备枚举器失败")?;
         match device_id {
             Some(id) => {
                 let wide: Vec<u16> = endpoint_id_from_device_id(id)
@@ -149,7 +148,7 @@ fn build_wave_format(format: &ExclusiveFormat) -> WAVEFORMATEXTENSIBLE {
     }
 }
 
-/// 位深候选：优先音源位深（bit-perfect），16bit 作通用兜底
+/// 位深候选：优先音源位深，16bit 作通用兜底
 fn valid_bits_candidates(source_bits: u32) -> Vec<u16> {
     match source_bits {
         0..=16 => vec![16, 24],
@@ -269,9 +268,14 @@ impl Drop for EventHandles {
 fn convert_sample(sample: f32, gain: f32, valid_bits: u16) -> i32 {
     let clamped = (sample * gain).clamp(-1.0, 1.0);
     match valid_bits {
-        16 => (clamped * 32_767.0) as i32,
-        24 => ((clamped * 8_388_607.0) as i32) << 8,
-        _ => (clamped * 2_147_483_647.0) as i32,
+        16 => (clamped * 32_768.0).round().clamp(-32_768.0, 32_767.0) as i32,
+        24 => {
+            ((clamped * 8_388_608.0)
+                .round()
+                .clamp(-8_388_608.0, 8_388_607.0) as i32)
+                << 8
+        }
+        _ => (clamped * 2_147_483_648.0).round() as i32,
     }
 }
 
@@ -345,8 +349,9 @@ pub fn open_exclusive_stream(
     let endpoint = resolve_endpoint(device_id_owned.as_deref())?;
 
     unsafe {
-        let client: IAudioClient =
-            endpoint.Activate(CLSCTX_ALL, None).context("激活音频客户端失败")?;
+        let mut client: IAudioClient = endpoint
+            .Activate(CLSCTX_ALL, None)
+            .context("激活音频客户端失败")?;
 
         // 独占 + 事件驱动：缓冲时长必须等于设备周期，未对齐时按实际帧数重试
         let mut default_period = 0i64;
@@ -364,8 +369,13 @@ pub fn open_exclusive_stream(
         if let Err(error) = &init {
             if error.code() == AUDCLNT_E_BUFFER_SIZE_NOT_ALIGNED {
                 let aligned_frames = client.GetBufferSize()?;
-                let aligned_duration =
-                    i64::from(aligned_frames) * 10_000_000 / i64::from(format.sample_rate);
+                let aligned_duration = (i64::from(aligned_frames) * 10_000_000
+                    + i64::from(format.sample_rate) / 2)
+                    / i64::from(format.sample_rate);
+                drop(client);
+                client = endpoint
+                    .Activate(CLSCTX_ALL, None)
+                    .context("重新激活音频客户端失败")?;
                 init = client.Initialize(
                     AUDCLNT_SHAREMODE_EXCLUSIVE,
                     AUDCLNT_STREAMFLAGS_EVENTCALLBACK,
@@ -379,7 +389,13 @@ pub fn open_exclusive_stream(
         init.context("初始化独占模式音频客户端失败")?;
 
         let period_event = CreateEventW(None, false, false, None).context("创建周期事件失败")?;
-        let shutdown_event = CreateEventW(None, true, false, None).context("创建关闭事件失败")?;
+        let shutdown_event = match CreateEventW(None, true, false, None) {
+            Ok(event) => event,
+            Err(error) => {
+                let _ = CloseHandle(period_event);
+                return Err(error).context("创建关闭事件失败");
+            }
+        };
         let period_handle = EventHandle(period_event);
         let shutdown_handle = EventHandle(shutdown_event);
         let handles = EventHandles(period_handle, shutdown_handle);
@@ -469,10 +485,11 @@ fn prefill_buffer(
         let gain = f32::from_bits(volume.load(Ordering::Relaxed));
         let silent = stopped.load(Ordering::Acquire) || paused.load(Ordering::Acquire);
         let block_align = usize::from(format.channels * format.container_bits / 8);
-        let byte_buffer =
-            std::slice::from_raw_parts_mut(ptr, buffer_frames as usize * block_align);
+        let byte_buffer = std::slice::from_raw_parts_mut(ptr, buffer_frames as usize * block_align);
         fill_buffer(byte_buffer, source, gain, silent, format);
-        render.ReleaseBuffer(buffer_frames, 0).context("启动预填充提交失败")
+        render
+            .ReleaseBuffer(buffer_frames, 0)
+            .context("启动预填充提交失败")
     }
 }
 
@@ -519,8 +536,9 @@ fn render_loop(
 
         let gain = f32::from_bits(volume.load(Ordering::Relaxed));
         let silent = stopped.load(Ordering::Acquire) || paused.load(Ordering::Acquire);
-        let byte_buffer =
-            unsafe { std::slice::from_raw_parts_mut(buffer_ptr, buffer_frames as usize * block_align) };
+        let byte_buffer = unsafe {
+            std::slice::from_raw_parts_mut(buffer_ptr, buffer_frames as usize * block_align)
+        };
         fill_buffer(byte_buffer, &mut source, gain, silent, &format);
 
         if let Err(error) = unsafe { render.ReleaseBuffer(buffer_frames, 0) } {
@@ -554,5 +572,88 @@ fn fill_buffer(
         };
         raw[..bytes_per_sample].copy_from_slice(&value.to_le_bytes()[..bytes_per_sample]);
         chunk.copy_from_slice(&raw[..bytes_per_sample]);
+    }
+}
+
+/// 读取实际开流失败的 HRESULT，保留稳定的回退提示分类。
+pub fn fallback_reason(error: &anyhow::Error) -> &'static str {
+    match error
+        .downcast_ref::<windows::core::Error>()
+        .map(|error| error.code())
+    {
+        Some(AUDCLNT_E_DEVICE_IN_USE) => "deviceBusy",
+        Some(AUDCLNT_E_UNSUPPORTED_FORMAT) => "formatUnsupported",
+        _ => "unavailable",
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn pcm16_roundtrip_preserves_every_sample_at_unity_gain() {
+        for sample in i16::MIN..=i16::MAX {
+            assert_eq!(
+                convert_sample(f32::from(sample) / 32_768.0, 1.0, 16),
+                i32::from(sample)
+            );
+        }
+    }
+
+    #[test]
+    fn pcm24_roundtrip_preserves_every_sample_at_unity_gain() {
+        for sample in -8_388_608..=8_388_607 {
+            assert_eq!(
+                convert_sample(sample as f32 / 8_388_608.0, 1.0, 24),
+                sample << 8
+            );
+        }
+    }
+
+    #[test]
+    fn pcm_conversion_clips_without_wrapping_and_applies_gain() {
+        for (bits, min, max) in [
+            (16, -32_768, 32_767),
+            (24, i32::MIN, 0x7FFFFF00),
+            (32, i32::MIN, i32::MAX),
+        ] {
+            assert_eq!(convert_sample(-2.0, 1.0, bits), min);
+            assert_eq!(convert_sample(2.0, 1.0, bits), max);
+            assert_eq!(convert_sample(1.0, 0.0, bits), 0);
+        }
+        assert_eq!(convert_sample(0.5, 0.5, 16), 8192);
+        assert_eq!(convert_sample(-0.5, 0.5, 24), -2_097_152 << 8);
+    }
+
+    #[test]
+    fn exclusive_format_describes_all_eight_channels() {
+        let wave = build_wave_format(&ExclusiveFormat {
+            sample_rate: 48_000,
+            channels: 8,
+            container_bits: 32,
+            valid_bits: 24,
+        });
+        let mask = wave.dwChannelMask;
+        let size = wave.Format.cbSize;
+        let align = wave.Format.nBlockAlign;
+        assert_eq!(mask.count_ones(), 8);
+        assert_eq!(size, 22);
+        assert_eq!(align, 32);
+    }
+
+    #[test]
+    fn initialization_errors_keep_their_fallback_reason_through_context() {
+        use windows::Win32::Media::Audio::AUDCLNT_E_EXCLUSIVE_MODE_NOT_ALLOWED;
+
+        for (code, reason) in [
+            (AUDCLNT_E_DEVICE_IN_USE, "deviceBusy"),
+            (AUDCLNT_E_UNSUPPORTED_FORMAT, "formatUnsupported"),
+            (AUDCLNT_E_EXCLUSIVE_MODE_NOT_ALLOWED, "unavailable"),
+        ] {
+            let error = anyhow::Error::new(windows::core::Error::from_hresult(code))
+                .context("初始化独占模式音频客户端失败");
+            assert_eq!(fallback_reason(&error), reason);
+        }
     }
 }

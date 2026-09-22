@@ -43,6 +43,8 @@ pub struct AudioOutput {
     /// 该输出流的单调代次，用于诊断和过滤销毁后迟到的流错误
     generation: u64,
     on_failure: OutputFailureCallback,
+    #[cfg(target_os = "windows")]
+    on_fallback: Option<ExclusiveFallbackCallback>,
 }
 
 impl AudioOutput {
@@ -68,13 +70,9 @@ impl AudioOutput {
         on_failure: OutputFailureCallback,
         exclusive: Option<&ExclusiveFallbackCallback>,
     ) -> Result<Self> {
-        let (device, config, exclusive_format) = open_device(
-            device_id,
-            requested_sample_rate,
-            source_bits,
-            exclusive,
-        )
-        .with_audio_kind(AudioErrorKind::Device)?;
+        let (device, config, exclusive_format) =
+            open_device(device_id, requested_sample_rate, source_bits, exclusive)
+                .with_audio_kind(AudioErrorKind::Device)?;
         #[cfg(not(target_os = "windows"))]
         let _ = exclusive_format;
         #[cfg(target_os = "windows")]
@@ -111,6 +109,8 @@ impl AudioOutput {
             exclusive: exclusive_format,
             generation,
             on_failure,
+            #[cfg(target_os = "windows")]
+            on_fallback: exclusive.cloned(),
         })
     }
 
@@ -130,6 +130,21 @@ impl AudioOutput {
             return format.channels;
         }
         self.config.channels()
+    }
+
+    /// 实际开流失败时切换到共享格式；调用方必须按新格式重新创建样本缓冲。
+    pub(crate) fn fallback_to_shared(
+        &mut self,
+        error: &anyhow::Error,
+    ) -> Option<(ExclusiveFallbackCallback, &'static str)> {
+        #[cfg(target_os = "windows")]
+        if self.exclusive.take().is_some() {
+            let reason = crate::wasapi_exclusive::fallback_reason(error);
+            warn!(reason, error = %error, "独占模式开流失败，尝试共享模式");
+            return self.on_fallback.clone().map(|callback| (callback, reason));
+        }
+        let _ = error;
+        None
     }
 
     /// 按本配置创建一次播放的输出流，实时回调从 `source` 拉取样本。
@@ -229,7 +244,9 @@ mod mta {
                 let _ = result_tx.send(f());
             }))
             .map_err(|_| anyhow!("MTA 线程已退出"))?;
-        result_rx.recv().map_err(|_| anyhow!("MTA 线程发生 panic"))?
+        result_rx
+            .recv()
+            .map_err(|_| anyhow!("MTA 线程发生 panic"))?
     }
 }
 

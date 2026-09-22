@@ -905,7 +905,7 @@
       "shared": "Shared Mode",
       "exclusive": "WASAPI Exclusive Mode",
       "fallback": {
-        "deviceBusy": "The device is being used exclusively by another app, falling back to shared mode",
+        "deviceBusy": "The device could not be opened exclusively and has fallen back to shared mode",
         "formatUnsupported": "The device does not support the required exclusive-mode format, falling back to shared mode",
         "unavailable": "Exclusive mode is currently unavailable, falling back to shared mode"
       }
@@ -1094,7 +1094,7 @@
       "kugouLoginVersionTitle": "Switch KG Login Version",
       "kugouLoginVersionContent": "After switching, the current credentials will not match the new version. You must log out and scan the QR code again, or VIP privileges and high-quality playback will stop working. Switch anyway?",
       "exclusiveModeTitle": "Switch to Exclusive Mode",
-      "exclusiveModeContent": "Exclusive mode bypasses the system mixer and sends the original sample rate and bit depth directly to the sound card (bit-perfect), ideal for external DACs / Hi-Fi gear; other apps cannot play audio while exclusive. If the device is busy or the format is unsupported, it will automatically fall back to shared mode. Switch anyway?"
+      "exclusiveModeContent": "Exclusive mode bypasses the system mixer and prefers the source sample rate and bit depth, making it suitable for external DACs / Hi-Fi gear. Player volume, EQ and other processing still apply, so bit-perfect output is not guaranteed. Other apps may be unable to play audio while exclusive. If exclusive mode is unavailable, shared mode will be attempted; it may also fail if another app holds the device exclusively. Switch anyway?"
     },
     "useAMSpring": {
       "label": "Spring Animation Debug Switch",

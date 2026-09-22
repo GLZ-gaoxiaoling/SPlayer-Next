@@ -36,10 +36,10 @@ export interface EqualizerSettings {
   preamp: number;
 }
 
-/** 播放器配置 */
 /** 音频输出模式 */
 export type AudioOutputMode = "shared" | "exclusive";
 
+/** 播放器配置 */
 export interface PlayerSettings {
   /** 加载后自动播放 */
   autoPlay: boolean;

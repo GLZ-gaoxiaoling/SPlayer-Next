@@ -95,26 +95,9 @@ const _: fn() = || {
 };
 
 impl InnerPlayer {
-    /// 未初始化时通过 `AudioOutput::new` 懒构造音频输出。
-    /// 设备失效时的重建由 `reinit_output` 显式处理，不在此函数内自动恢复
-    fn ensure_output(&mut self, requested_sample_rate: Option<u32>) -> Result<&AudioOutput> {
-        if self.output.is_none() {
-            let generation = self.reserve_output_generation();
-            let on_failure = self.make_failure_callback(generation);
-            let on_fallback = self.make_fallback_callback(generation);
-            let exclusive = self.exclusive_mode.then_some(on_fallback);
-            self.output = Some(AudioOutput::new(
-                self.selected_device.as_deref(),
-                requested_sample_rate,
-                None,
-                generation,
-                on_failure,
-                exclusive.as_ref(),
-            )?);
-        }
-        self.output
-            .as_ref()
-            .ok_or_else(|| anyhow::anyhow!("ensure_output 后置条件违反"))
+    /// 获取输出流使用的频谱分析器。
+    pub fn fft_handle(&self) -> Arc<FftAnalyzer> {
+        Arc::clone(&self.fft)
     }
 
     /// 构造输出失败回调：只发送轻量 `PlayerEvent::OutputFailed`，
@@ -149,22 +132,6 @@ impl InnerPlayer {
     /// 预留下一代输出流，并立即使旧输出的回调失效。
     pub fn reserve_output_generation(&self) -> u64 {
         self.output_generation.fetch_add(1, Ordering::AcqRel) + 1
-    }
-
-    /// 当前实际输出流采样率（播放重采样目标）
-    pub fn output_sample_rate(&self) -> u32 {
-        self.output
-            .as_ref()
-            .map(|out| out.sample_rate())
-            .unwrap_or(decoder::DEFAULT_TARGET_SAMPLE_RATE)
-    }
-
-    /// 当前实际输出流声道数
-    pub fn output_channels(&self) -> u16 {
-        self.output
-            .as_ref()
-            .map(AudioOutput::channels)
-            .unwrap_or(decoder::DEFAULT_OUTPUT_CHANNELS)
     }
 
     pub fn new() -> Result<Self> {
